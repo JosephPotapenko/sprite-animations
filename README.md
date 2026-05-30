@@ -1,9 +1,21 @@
 # SpriteForge 256
 
-SpriteForge 256 is a browser-based sprite animation tool that runs well in GitHub Codespaces and on a normal CPU-only machine. Open the repo in Codespaces, wait for dependency install, then run:
+SpriteForge 256 is a browser-based sprite animation tool that runs well in GitHub Codespaces and on a normal CPU-only machine.
+
+There are now two copies in the repo:
+
+- [spriteforge_256_full/spriteforge_256_full](spriteforge_256_full/spriteforge_256_full) is the original app tree.
+- [sprite-animations-main-fixed/sprite-animations-main/spriteforge_256_full/spriteforge_256_full](sprite-animations-main-fixed/sprite-animations-main/spriteforge_256_full/spriteforge_256_full) is the fixed tree.
+
+Use the fixed tree in Codespaces. Open a terminal there, then run:
 
 ```bash
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+python -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+python -m uvicorn app.main:app --host 0.0.0.0 --port 8000
 ```
 
-The actual app lives in [spriteforge_256_full/spriteforge_256_full](spriteforge_256_full/spriteforge_256_full). For full setup notes, API details, and the AI upgrade path, see the nested README in that folder.
+If you prefer the older one-command dev server, `uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload` also works.
+
+For full setup notes, API details, and the AI upgrade path, see the nested README in the fixed app folder.

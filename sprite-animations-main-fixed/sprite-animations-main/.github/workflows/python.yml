@@ -13,10 +13,10 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install dependencies
-        working-directory: sprite-animations-main-fixed/sprite-animations-main/spriteforge_256_full/spriteforge_256_full
+        working-directory: spriteforge_256_full/spriteforge_256_full
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt
       - name: Run tests
-        working-directory: sprite-animations-main-fixed/sprite-animations-main/spriteforge_256_full/spriteforge_256_full
+        working-directory: spriteforge_256_full/spriteforge_256_full
         run: pytest
