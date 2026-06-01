@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 import json
 import os
+from io import BytesIO
 import uuid
 from pathlib import Path
 from zipfile import ZIP_DEFLATED, ZipFile
@@ -11,6 +13,7 @@ from fastapi.responses import FileResponse, HTMLResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from starlette.requests import Request
+from PIL import Image
 
 from .engine.animation import SpriteAnimator
 from .engine.image_ops import (
@@ -29,19 +32,25 @@ from .schemas import GenerateRequest
 
 BASE_DIR = Path(__file__).resolve().parent
 ROOT = BASE_DIR.parent
-OUTPUTS = ROOT / 'outputs'
-UPLOADS = ROOT / 'uploads'
-OUTPUTS.mkdir(exist_ok=True)
-UPLOADS.mkdir(exist_ok=True)
+IS_VERCEL = bool(os.getenv('VERCEL'))
+if IS_VERCEL:
+    OUTPUTS = Path('/tmp/spriteforge_256/outputs')
+    UPLOADS = Path('/tmp/spriteforge_256/uploads')
+else:
+    OUTPUTS = ROOT / 'outputs'
+    UPLOADS = ROOT / 'uploads'
+    OUTPUTS.mkdir(exist_ok=True)
+    UPLOADS.mkdir(exist_ok=True)
 
+def _image_to_data_uri(image: Image.Image, fmt: str = 'PNG') -> str:
+    buffer = BytesIO()
+    image.save(buffer, format=fmt)
+    encoded = base64.b64encode(buffer.getvalue()).decode('ascii')
+    mime = 'image/png' if fmt.upper() == 'PNG' else 'image/gif' if fmt.upper() == 'GIF' else 'application/octet-stream'
+    return f'data:{mime};base64,{encoded}'
 
-def _truthy_env(name: str) -> bool:
-    return os.getenv(name, '').strip().lower() in {'1', 'true', 'yes', 'on'}
-
-
-AI_FEATURE_FLAG = _truthy_env('SPRITEFORGE_ENABLE_AI') or (
-    _truthy_env('CODESPACES') and os.getenv('SPRITEFORGE_ENABLE_AI', '').strip() == ''
-)
+def _bytes_to_data_uri(payload: bytes, mime: str) -> str:
+    return f'data:{mime};base64,{base64.b64encode(payload).decode("ascii")}'
 
 app = FastAPI(title='SpriteForge 256', version='1.0.0')
 app.mount('/static', StaticFiles(directory=BASE_DIR / 'static'), name='static')
@@ -56,37 +65,12 @@ def index(request: Request):
 
 @app.get('/health')
 def health():
-    return {'ok': True, 'name': 'SpriteForge 256', 'canvas_size': CANVAS_SIZE, 'ai_enabled': AI_FEATURE_FLAG}
+    return {'ok': True, 'name': 'SpriteForge 256', 'canvas_size': CANVAS_SIZE}
 
 
 @app.get('/api/status')
 def status():
     return health()
-
-
-@app.get('/api/ai/status')
-def ai_status():
-    try:
-        from .ai.optional_diffusion import default_model_id, is_available
-
-        available = is_available()
-    except Exception:
-        available = False
-
-    return {
-        'enabled': AI_FEATURE_FLAG,
-        'available': AI_FEATURE_FLAG and available,
-        'model_id': default_model_id() if AI_FEATURE_FLAG else None,
-        'message': (
-            'AI generation is opt-in and disabled by default.'
-            if not AI_FEATURE_FLAG
-            else (
-                'Prompt-guided AI fallback is available.'
-                if default_model_id() == 'procedural-prompt-fallback'
-                else ('GPU/torch models are not available yet.' if not available else 'Optional AI generation is available.')
-            )
-        ),
-    }
 
 
 def _normalize_frames(frames_out):
@@ -110,7 +94,7 @@ async def generate(
 ):
     try:
         req = GenerateRequest(
-            animation=animation if animation in ['idle', 'walk', 'run', 'jump', 'attack', 'cast', 'hurt', 'spin', 'bounce', 'custom'] else 'custom',
+            animation=animation if animation in ['idle', 'walk', 'run', 'jump', 'attack', 'ranged', 'cast', 'hurt', 'damage', 'heal', 'buff', 'shield', 'poison', 'spin', 'bounce'] else 'walk',
             prompt=prompt,
             frames=frames,
             fps=fps,
@@ -151,9 +135,64 @@ async def generate(
         frames_out = [add_shadow(frame) for frame in frames_out]
     frames_out = _normalize_frames(frames_out)
 
+    # Detect whether the original upload had any transparency; if so, keep outputs transparent
+    try:
+        has_transparency = im.getchannel('A').getextrema()[0] < 255
+    except Exception:
+        has_transparency = False
+
     job = uuid.uuid4().hex[:12]
     out_dir = OUTPUTS / job
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    if IS_VERCEL:
+        gif_buffer = BytesIO()
+        normalized = [ensure_canvas(frame, CANVAS_SIZE) for frame in frames_out]
+        duration = int(1000 / max(1, settings.fps))
+        normalized[0].save(
+            gif_buffer,
+            format='GIF',
+            save_all=True,
+            append_images=normalized[1:],
+            duration=duration,
+            loop=0,
+            disposal=2,
+            optimize=False,
+        )
+        sheet_buffer = BytesIO()
+        width, height = normalized[0].size
+        rows = (len(normalized) + req.spritesheet_columns - 1) // req.spritesheet_columns
+        sheet = Image.new('RGBA', (width * req.spritesheet_columns, height * rows), (0, 0, 0, 0))
+        for index, frame in enumerate(normalized):
+            sheet.alpha_composite(frame, ((index % req.spritesheet_columns) * width, (index // req.spritesheet_columns) * height))
+        sheet.save(sheet_buffer, format='PNG')
+
+        zip_buffer = BytesIO()
+        with ZipFile(zip_buffer, 'w', ZIP_DEFLATED) as zf:
+            for index, frame in enumerate(normalized):
+                frame_bytes = BytesIO()
+                frame.save(frame_bytes, format='PNG')
+                zf.writestr(f'frame_{index:03d}.png', frame_bytes.getvalue())
+
+        preview_png_data = _image_to_data_uri(normalized[0], 'PNG') if has_transparency else None
+        metadata = {
+            'job_id': job,
+            'animation': settings.animation,
+            'frames': len(frames_out),
+            'fps': settings.fps,
+            'canvas_size': CANVAS_SIZE,
+            'pixel_size': req.pixel_size,
+            'prompt': req.prompt,
+            'downloads': {
+                'gif': _bytes_to_data_uri(gif_buffer.getvalue(), 'image/gif'),
+                'spritesheet': _bytes_to_data_uri(sheet_buffer.getvalue(), 'image/png'),
+                'zip': _bytes_to_data_uri(zip_buffer.getvalue(), 'application/zip'),
+            },
+        }
+        if preview_png_data:
+            metadata['downloads']['preview_png'] = preview_png_data
+        return JSONResponse(metadata)
+
     frames_dir = out_dir / 'frames'
     frames_dir.mkdir()
 
@@ -162,9 +201,17 @@ async def generate(
 
     sheet_path = out_dir / 'spritesheet.png'
     gif_path = out_dir / 'preview.gif'
+    preview_png_path = out_dir / 'preview.png'
     zip_path = out_dir / 'frames.zip'
     save_spritesheet(frames_out, sheet_path, req.spritesheet_columns)
     save_gif(frames_out, gif_path, settings.fps)
+
+    # If the input had transparency, also produce a PNG preview that preserves alpha
+    if has_transparency:
+        try:
+            frames_out[0].save(preview_png_path)
+        except Exception:
+            pass
 
     with ZipFile(zip_path, 'w', ZIP_DEFLATED) as zf:
         for path in frames_dir.glob('*.png'):
@@ -184,76 +231,8 @@ async def generate(
             'zip': f'/outputs/{job}/frames.zip',
         },
     }
-    (out_dir / 'metadata.json').write_text(json.dumps(metadata, indent=2), encoding='utf-8')
-    return JSONResponse(metadata)
-
-
-@app.post('/api/ai/generate')
-async def generate_ai(
-    sprite: UploadFile = File(...),
-    animation: str = Form('custom'),
-    prompt: str = Form(''),
-    frames: int = Form(8),
-    seed: str = Form(''),
-):
-    if not AI_FEATURE_FLAG:
-        raise HTTPException(503, 'Optional AI generation is disabled. Set SPRITEFORGE_ENABLE_AI=1 to opt in.')
-
-    raw = await sprite.read()
-    if not raw:
-        raise HTTPException(400, 'No image uploaded.')
-
-    try:
-        base = fit_sprite(open_rgba(raw), CANVAS_SIZE)
-    except Exception as exc:
-        raise HTTPException(400, 'Upload must be a readable image file.') from exc
-
-    try:
-        from .ai.optional_diffusion import DiffusionUnavailable, generate_ai_frames
-    except Exception as exc:
-        raise HTTPException(503, f'AI module is not available: {exc}') from exc
-
-    try:
-        frame_total = max(2, min(32, int(frames)))
-        seed_value = int(seed) if str(seed).strip() else None
-        frames_out = _normalize_frames(generate_ai_frames(base, prompt, frames=frame_total, size=CANVAS_SIZE, animation=animation, seed=seed_value))
-    except DiffusionUnavailable as exc:
-        raise HTTPException(503, str(exc)) from exc
-    except Exception as exc:
-        raise HTTPException(500, f'AI generation failed: {exc}') from exc
-
-    job = uuid.uuid4().hex[:12]
-    out_dir = OUTPUTS / job
-    out_dir.mkdir(parents=True, exist_ok=True)
-    frames_dir = out_dir / 'frames'
-    frames_dir.mkdir()
-
-    for index, frame in enumerate(frames_out):
-        frame.save(frames_dir / f'frame_{index:03d}.png')
-
-    sheet_path = out_dir / 'spritesheet.png'
-    gif_path = out_dir / 'preview.gif'
-    zip_path = out_dir / 'frames.zip'
-    save_spritesheet(frames_out, sheet_path, 8)
-    save_gif(frames_out, gif_path, 10)
-
-    with ZipFile(zip_path, 'w', ZIP_DEFLATED) as zf:
-        for path in frames_dir.glob('*.png'):
-            zf.write(path, arcname=path.name)
-
-    metadata = {
-        'job_id': job,
-        'animation': 'ai',
-        'frames': len(frames_out),
-        'fps': 10,
-        'canvas_size': CANVAS_SIZE,
-        'prompt': prompt,
-        'downloads': {
-            'gif': f'/outputs/{job}/preview.gif',
-            'spritesheet': f'/outputs/{job}/spritesheet.png',
-            'zip': f'/outputs/{job}/frames.zip',
-        },
-    }
+    if has_transparency:
+        metadata['downloads']['preview_png'] = f'/outputs/{job}/preview.png'
     (out_dir / 'metadata.json').write_text(json.dumps(metadata, indent=2), encoding='utf-8')
     return JSONResponse(metadata)
 

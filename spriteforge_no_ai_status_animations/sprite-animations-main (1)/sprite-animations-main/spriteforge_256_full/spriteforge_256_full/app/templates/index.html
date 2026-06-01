@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>SpriteForge 256</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">Open-source style · CPU-only · 256×256</p>
+        <h1>SpriteForge 256</h1>
+        <p class="subtitle">Upload a character sprite, choose or describe an animation, then download frames, a GIF preview, or a spritesheet.</p>
+        <p class="fineprint">The canvas is always normalized to 256×256, even when the input sprite is larger or smaller.</p>
+      </div>
+      <div class="badge-stack">
+        <div class="badge">No login · Runs in Codespaces</div>
+        <div class="service-status" id="serviceStatus">Checking backend...</div>
+      </div>
+    </section>
+
+    <section class="grid">
+      <form id="form" class="card controls">
+        <label class="drop" id="drop">
+          <input id="sprite" name="sprite" type="file" accept="image/*" required />
+          <span>Drop sprite here or click to upload</span>
+          <img id="inputPreview" alt="input preview" hidden />
+        </label>
+
+        <label>Animation
+          <select name="animation">
+            <option>walk</option><option>idle</option><option>run</option><option>jump</option><option>attack</option><option>ranged</option><option>cast</option><option>hurt</option><option>damage</option><option>heal</option><option>buff</option><option>shield</option><option>poison</option><option>spin</option><option>bounce</option><option>custom</option>
+          </select>
+        </label>
+
+        <label>Prompt
+          <textarea name="prompt" rows="3" placeholder="Example: subtle heal, damage knockback, shield pulse, 12 frames"></textarea>
+        </label>
+
+        <div class="row">
+          <label>Frames <input name="frames" type="number" min="2" max="32" value="8" /></label>
+          <label>FPS <input name="fps" type="number" min="1" max="30" value="10" /></label>
+        </div>
+        <div class="row">
+          <label>Size <input name="pixel_size" type="number" min="64" max="512" value="256" /></label>
+          <label>Columns <input name="spritesheet_columns" type="number" min="1" max="16" value="8" /></label>
+        </div>
+
+        <div class="checks">
+          <label><input name="remove_background" type="checkbox" /> Remove flat corner background</label>
+          <label><input name="outline" type="checkbox" /> Add outline</label>
+          <label><input name="shadow" type="checkbox" checked /> Add shadow</label>
+          <label><input name="smart_prompt" type="checkbox" checked /> Use smart prompt parser</label>
+        </div>
+        <label>Seed <input name="seed" type="text" placeholder="optional" /></label>
+        <button id="go" type="submit">Generate animation</button>
+        <p id="status" class="status"></p>
+      </form>
+
+      <section class="card preview">
+        <h2>Result</h2>
+        <div class="stage"><img id="gif" alt="generated preview" /></div>
+        <div class="downloads" id="downloads" hidden>
+          <a id="dlGif" download>GIF</a>
+          <a id="dlSheet" download>Spritesheet PNG</a>
+          <a id="dlZip" download>Frame ZIP</a>
+        </div>
+        <pre id="meta"></pre>
+      </section>
+    </section>
+  </main>
+<script src="/static/app.js"></script>
+</body>
+</html>

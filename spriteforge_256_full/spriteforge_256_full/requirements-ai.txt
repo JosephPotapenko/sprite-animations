@@ -1,7 +1,0 @@
-# Optional AI extras for the free Codespaces path.
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.6.0+cpu
-diffusers>=0.33.0
-transformers
-accelerate
-safetensors

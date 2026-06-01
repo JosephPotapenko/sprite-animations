@@ -18,7 +18,7 @@ def make_base_sprite() -> Image.Image:
 
 def test_all_builtin_animations_produce_256_square_frames():
     base = make_base_sprite()
-    animation_names = ['idle', 'walk', 'run', 'jump', 'attack', 'cast', 'hurt', 'spin', 'bounce', 'custom']
+    animation_names = ['idle', 'walk', 'run', 'jump', 'attack', 'ranged', 'cast', 'hurt', 'damage', 'heal', 'buff', 'shield', 'poison', 'spin', 'bounce']
 
     for animation in animation_names:
         settings = PromptSettings(animation=animation, frames=6, fps=10, intensity=1.0, direction='right')

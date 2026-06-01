@@ -67,17 +67,19 @@ def add_outline(im: Image.Image, color=(20, 20, 28, 255), radius: int = 2) -> Im
 
 
 def add_shadow(im: Image.Image, y: int = 226) -> Image.Image:
-    out = _blank(im.size[0])
-    bbox = im.getbbox() or (80, 80, 176, 220)
-    width = max(42, min(128, int((bbox[2] - bbox[0]) * 0.75)))
-    center_x = im.size[0] // 2
-    mask = Image.new('L', im.size, 0)
-    draw = ImageDraw.Draw(mask)
-    draw.ellipse(((center_x - width // 2, y - 8), (center_x + width // 2, y + 8)), fill=180)
-    mask = mask.filter(ImageFilter.GaussianBlur(5))
+    # Create a soft shadow derived from the sprite's alpha channel.
+    size = im.size[0]
+    out = _blank(size)
+    alpha = im.split()[-1]
+    # Blur the alpha to produce a soft shadow mask
+    shadow_mask = alpha.filter(ImageFilter.GaussianBlur(radius=max(3, size // 48)))
+    # Dim the shadow mask for subtlety
+    shadow_mask = shadow_mask.point(lambda v: int(v * 0.28))
     shadow = Image.new('RGBA', im.size, (0, 0, 0, 0))
-    shadow.putalpha(mask.point(lambda value: int(value * 0.25)))
-    out.alpha_composite(shadow)
+    shadow.putalpha(shadow_mask)
+    # Slight downward offset for the shadow
+    offset_y = max(2, size // 40)
+    out.alpha_composite(shadow, (0, offset_y))
     out.alpha_composite(im)
     return out
 
@@ -191,11 +193,16 @@ def add_outline(im: Image.Image, color=(20,20,28,255), radius=2) -> Image.Image:
     return out
 
 def add_shadow(im: Image.Image, y=226) -> Image.Image:
+    # Create a soft shadow derived from the sprite's alpha channel (alternate implementation)
+    size = im.size[0]
     out = Image.new('RGBA', im.size, TRANSPARENT)
-    d = ImageDraw.Draw(out, 'RGBA')
-    bbox = im.getbbox() or (80,80,176,220)
-    w = max(42, min(128, int((bbox[2]-bbox[0])*0.75)))
-    d.ellipse(((128-w//2, y-8), (128+w//2, y+8)), fill=(0,0,0,46))
+    alpha = im.split()[-1]
+    shadow_mask = alpha.filter(ImageFilter.GaussianBlur(radius=max(3, size // 48)))
+    shadow_mask = shadow_mask.point(lambda v: int(v * 0.28))
+    shadow = Image.new('RGBA', im.size, (0, 0, 0, 0))
+    shadow.putalpha(shadow_mask)
+    offset_y = max(2, size // 40)
+    out.alpha_composite(shadow, (0, offset_y))
     out.alpha_composite(im)
     return out
 

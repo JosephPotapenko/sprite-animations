@@ -1,7 +1,8 @@
-from pydantic import BaseModel, Field
 from typing import Literal, Optional
 
-AnimationName = Literal['idle','walk','run','jump','attack','cast','hurt','spin','bounce','custom']
+from pydantic import BaseModel, Field
+
+AnimationName = Literal['idle', 'walk', 'run', 'jump', 'attack', 'ranged', 'cast', 'hurt', 'damage', 'heal', 'buff', 'shield', 'poison', 'spin', 'bounce']
 
 class GenerateRequest(BaseModel):
     animation: AnimationName = 'walk'

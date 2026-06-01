@@ -31,49 +31,6 @@ def test_health_endpoint_reports_canvas_size():
     assert response.json()['canvas_size'] == 256
 
 
-def test_ai_status_is_disabled_by_default():
-    client = TestClient(main.app)
-
-    response = client.get('/api/ai/status')
-
-    assert response.status_code == 200
-    assert response.json()['enabled'] is False
-
-
-def test_ai_generate_endpoint_uses_monkeypatched_generator(monkeypatch, tmp_path):
-    monkeypatch.setattr(main, 'OUTPUTS', tmp_path / 'outputs')
-    monkeypatch.setattr(main, 'UPLOADS', tmp_path / 'uploads')
-    monkeypatch.setattr(main, 'AI_FEATURE_FLAG', True)
-    main.OUTPUTS.mkdir(parents=True, exist_ok=True)
-    main.UPLOADS.mkdir(parents=True, exist_ok=True)
-
-    from app.ai import optional_diffusion
-    from PIL import Image
-
-    def fake_generate_ai_frames(base, prompt, frames=8, size=256, animation='custom', seed=None):
-        return [Image.new('RGBA', (size, size), (0, 0, 0, 0)) for _ in range(frames)]
-
-    monkeypatch.setattr(optional_diffusion, 'generate_ai_frames', fake_generate_ai_frames)
-
-    client = TestClient(main.app)
-    response = client.post(
-        '/api/ai/generate',
-        files={'sprite': ('sprite.png', make_sprite(), 'image/png')},
-        data={
-            'animation': 'cast',
-            'prompt': 'glowing spell aura',
-            'frames': '4',
-            'seed': '9',
-        },
-    )
-
-    assert response.status_code == 200
-    payload = response.json()
-    assert payload['animation'] == 'ai'
-    assert payload['frames'] == 4
-    assert client.get(f"/download/{payload['job_id']}/gif").status_code == 200
-
-
 def test_generate_endpoint_creates_all_downloads(monkeypatch, tmp_path):
     monkeypatch.setattr(main, 'OUTPUTS', tmp_path / 'outputs')
     monkeypatch.setattr(main, 'UPLOADS', tmp_path / 'uploads')
@@ -113,3 +70,33 @@ def test_generate_endpoint_creates_all_downloads(monkeypatch, tmp_path):
 
     zip_file = ZipFile(io.BytesIO(zip_response.content))
     assert len(zip_file.namelist()) == 6
+
+
+def test_generate_endpoint_supports_status_effect_animations(monkeypatch, tmp_path):
+    monkeypatch.setattr(main, 'OUTPUTS', tmp_path / 'outputs')
+    monkeypatch.setattr(main, 'UPLOADS', tmp_path / 'uploads')
+    main.OUTPUTS.mkdir(parents=True, exist_ok=True)
+    main.UPLOADS.mkdir(parents=True, exist_ok=True)
+
+    client = TestClient(main.app)
+    response = client.post(
+        '/api/generate',
+        files={'sprite': ('sprite.png', make_sprite(), 'image/png')},
+        data={
+            'animation': 'damage',
+            'frames': '4',
+            'fps': '10',
+            'pixel_size': '256',
+            'spritesheet_columns': '2',
+            'remove_background': 'false',
+            'outline': 'false',
+            'shadow': 'true',
+            'smart_prompt': 'true',
+            'seed': '7',
+        },
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload['animation'] == 'damage'
+    assert payload['frames'] == 4

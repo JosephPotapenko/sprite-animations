@@ -6,10 +6,9 @@ SpriteForge 256 is a browser-based sprite animation tool that runs well in GitHu
 
 - Upload PNG, JPG, or WebP sprite art
 - Normalize every output frame to an exact 256×256 canvas
-- Generate procedural animations for `idle`, `walk`, `run`, `jump`, `attack`, `cast`, `hurt`, `spin`, `bounce`, and `custom`
+- Generate procedural animations for `idle`, `walk`, `run`, `jump`, `attack`, `ranged`, `cast`, `hurt`, `damage`, `heal`, `buff`, `shield`, `poison`, `spin`, and `bounce`
 - Parse simple prompts like `fast sword attack, 12 frames`
 - Download an animated GIF, a PNG spritesheet, or a ZIP of frames
-- Keep optional AI generation behind a feature flag so the app still works without GPU models
 
 ## One-command start in Codespaces
 
@@ -51,36 +50,12 @@ docker run -p 8000:8000 spriteforge-256
 
 ## CPU-only limits
 
-The default engine is intentionally lightweight and free. It uses procedural transforms, timing curves, and simple effects instead of pose estimation or diffusion models. That keeps it fast in Codespaces, but it also means:
+The default engine is intentionally lightweight and free. It uses procedural transforms, timing curves, overlays, and simple effects instead of pose estimation or diffusion models. That keeps it fast in Codespaces, but it also means:
 
 - It cannot infer detailed limb motion from a single flat sprite.
 - It works best when the input sprite already faces a consistent direction.
 - Complex cloth, weapon, and facial changes are approximated rather than redrawn.
 - GIF output is less faithful than the PNG spritesheet or ZIP because of GIF color limits.
-
-## Optional AI upgrade path
-
-Optional AI generation is wired into the UI behind the `Use AI generation` checkbox and the `SPRITEFORGE_ENABLE_AI=1` feature flag.
-
-In Codespaces, the AI path uses a lightweight prompt-guided fallback so it always works on CPU. On larger machines you can opt into the diffusion backend with `SPRITEFORGE_AI_BACKEND=diffusion`, and you can still override the model with `SPRITEFORGE_AI_MODEL_ID`.
-
-The default CPU-friendly diffusion checkpoint is `diffusers/tiny-stable-diffusion-torch`, with `hf-internal-testing/tiny-stable-diffusion-pipe` as a fallback if you enable the diffusion backend.
-
-Install the extra dependencies with:
-
-```bash
-pip install -r requirements-ai.txt
-```
-
-That path is intentionally not required for the normal CPU animation mode.
-
-Suggested open-source directions if you want to extend the project later:
-
-- Diffusers image-to-image pipelines for restyling
-- ControlNet for pose and silhouette control
-- AnimateDiff or a motion adapter for temporal coherence
-
-Check the model license before using any trained model commercially.
 
 ## Repository layout
 
@@ -92,8 +67,6 @@ app/
     animation.py          Procedural animation engine
     image_ops.py          Sprite normalization/export helpers
     prompt.py             Prompt parser
-  ai/
-    optional_diffusion.py Optional GPU model hook
   static/
     app.js
     styles.css
@@ -108,7 +81,7 @@ app/
 Multipart form fields:
 
 - `sprite`: image file
-- `animation`: idle/walk/run/jump/attack/cast/hurt/spin/bounce/custom
+- `animation`: idle/walk/run/jump/attack/ranged/cast/hurt/damage/heal/buff/shield/poison/spin/bounce
 - `prompt`: optional natural language prompt
 - `frames`: 2-32
 - `fps`: 1-30

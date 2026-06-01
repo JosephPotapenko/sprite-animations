@@ -1,0 +1,18 @@
+{
+  "name": "SpriteForge 256",
+  "image": "mcr.microsoft.com/devcontainers/python:3.12",
+  "workspaceFolder": "/workspaces/sprite-animations/spriteforge_256_full/spriteforge_256_full",
+  "forwardPorts": [8000],
+  "portsAttributes": {
+    "8000": {
+      "label": "SpriteForge",
+      "onAutoForward": "openBrowser"
+    }
+  },
+  "postCreateCommand": "python -m pip install --upgrade pip && pip install -r requirements.txt",
+  "customizations": {
+    "vscode": {
+      "extensions": ["ms-python.python", "ms-python.vscode-pylance"]
+    }
+  }
+}
